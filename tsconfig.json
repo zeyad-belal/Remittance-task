@@ -6,7 +6,11 @@
 
     "baseUrl": ".",
     "paths": {
-      "~/*": ["src/*"]
+      "@db/*": ["db/*"],
+      "@features/*": ["features/*"],
+      "@security/*": ["security/*"],
+      "@services/*": ["services/*"],
+      "@sync/*": ["sync/*"]
     }
   }
 }
