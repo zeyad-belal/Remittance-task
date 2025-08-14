@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { SQLiteProvider, type SQLiteDatabase } from 'expo-sqlite';
 import { drainOutbox } from '@sync/outbox';
 import { registerSyncTask } from '@sync/sync';
-import { registerPush } from '@services/notifications';
+// import { registerPush } from '@services/notifications';
 import NetInfo from '@react-native-community/netinfo';
 
 // Run schema migrations on first load / version change
@@ -47,8 +47,8 @@ export default function RootLayout() {
 
   (async () => {
     try {
-      const token = await registerPush();
-      if (__DEV__) console.log('Expo push token:', token);
+      // const token = await registerPush();
+      // if (__DEV__) console.log('Expo push token:', token);
     } catch (e) {
       console.warn('Push registration failed:', e);
     }
