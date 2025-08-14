@@ -3,6 +3,7 @@
     "name": "Remittance-app",
     "slug": "Remittance-app",
     "version": "1.0.0",
+    "scheme": "remit",
     "web": {
       "favicon": "./assets/favicon.png"
     },
@@ -16,13 +17,19 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#0A7",
-          "sounds": ["./assets/default.wav"]
+          "sounds": [
+            "./assets/default.wav"
+          ]
         }
       ],
       [
         "expo-sqlite",
-        { "enableFTS": true, "useSQLCipher": true }
-      ]
+        {
+          "enableFTS": true,
+          "useSQLCipher": true
+        }
+      ],
+      "expo-background-task"
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -32,15 +39,22 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "useFrameworks": "static",
       "bundleIdentifier": "com.yourco.remit",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
       },
-      "customBuildFlags": ["-DSQLITE_ENABLE_DBSTAT_VTAB=1 -DSQLITE_ENABLE_SNAPSHOT=1"]
+      "customBuildFlags": [
+        "-DSQLITE_ENABLE_DBSTAT_VTAB=1 -DSQLITE_ENABLE_SNAPSHOT=1"
+      ]
     },
     "android": {
       "adaptiveIcon": {

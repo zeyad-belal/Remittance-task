@@ -1,29 +1,38 @@
-import * as Crypto from 'expo-crypto';
 import * as Keychain from 'react-native-keychain';
+import * as LocalAuthentication from 'expo-local-authentication';
+import CryptoJS from 'crypto-js';
 
-const SERVICE = 'remit_signing_key_v1';
+const SERVICE = 'remit-signing-key';
 
-export async function getOrCreateSigningKey(): Promise<string> {
-  const existing = await Keychain.getGenericPassword({ service: SERVICE });
+export async function ensureSigningKey(): Promise<string> {
+  const existing = await Keychain.getGenericPassword();
   if (existing) return existing.password;
 
-  const secret = (await Crypto.getRandomBytesAsync(32)).toString();
-  await Keychain.setGenericPassword('user', secret, {
+  const random = Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))
+    .map((n) => n.toString(16).padStart(2, '0')).join('');
+  await Keychain.setGenericPassword('user', random, {
     service: SERVICE,
-    accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_ANY,
     accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    securityLevel: Keychain.SECURITY_LEVEL.SECURE_HARDWARE
+    accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE, // extra protection at OS level
   });
-  return secret;
+  return random;
 }
 
-export async function signPayload(payload: object): Promise<string> {
-  const creds = await Keychain.getGenericPassword({
-    service: SERVICE,
-    authenticationPrompt: { title: 'Authenticate to sign' }
+export async function biometricSignPayload(payload: unknown) {
+  // 1) Prompt biometric
+  const ok = await LocalAuthentication.authenticateAsync({
+    promptMessage: 'Confirm to sign transaction',
+    disableDeviceFallback: false,
   });
-  if (!creds) throw new Error('Biometric auth failed');
+  if (!ok.success) throw new Error('Biometric auth failed/cancelled');
 
-  const base = JSON.stringify(payload);
-  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `${base}|${creds.password}`);
+  // 2) Fetch secret from Keychain
+  const creds = await Keychain.getGenericPassword();
+  if (!creds) throw new Error('Signing key missing');
+  const secret = creds.password;
+
+  // 3) HMAC-SHA256 over canonical JSON string
+  const body = JSON.stringify(payload);
+  const sig = CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);
+  return { body, signature: sig, algo: 'HMAC-SHA256' };
 }

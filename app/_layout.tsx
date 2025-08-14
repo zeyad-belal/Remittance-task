@@ -41,16 +41,24 @@ async function migrateDbIfNeeded(db: SQLiteDatabase) {
 }
 
 export default function RootLayout() {
+
   useEffect(() => {
-    registerSyncTask();
-    registerPush();
-    const unsub = NetInfo.addEventListener(state => {
-      if (state.isConnected) {
-        drainOutbox().catch(() => {});
-      }
-    });
-    return () => unsub();
-  }, []);
+  registerSyncTask();
+
+  (async () => {
+    try {
+      const token = await registerPush();
+      if (__DEV__) console.log('Expo push token:', token);
+    } catch (e) {
+      console.warn('Push registration failed:', e);
+    }
+  })();
+
+  const unsub = NetInfo.addEventListener(s => {
+    if (s.isConnected) drainOutbox().catch(() => {});
+  });
+  return () => unsub();
+}, []);
 
   return (
     <SQLiteProvider databaseName="app.db" onInit={migrateDbIfNeeded}>
