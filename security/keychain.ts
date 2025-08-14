@@ -5,7 +5,7 @@ import CryptoJS from 'crypto-js';
 const SERVICE = 'remit-signing-key';
 
 export async function ensureSigningKey(): Promise<string> {
-  const existing = await Keychain.getGenericPassword();
+  const existing = await Keychain.getGenericPassword({ service: SERVICE });
   if (existing) return existing.password;
 
   const random = Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))
@@ -27,7 +27,7 @@ export async function biometricSignPayload(payload: unknown) {
   if (!ok.success) throw new Error('Biometric auth failed/cancelled');
 
   // 2) Fetch secret from Keychain
-  const creds = await Keychain.getGenericPassword();
+  const creds = await Keychain.getGenericPassword({ service: SERVICE });
   if (!creds) throw new Error('Signing key missing');
   const secret = creds.password;
 

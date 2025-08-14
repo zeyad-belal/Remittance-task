@@ -40,7 +40,7 @@ async function generateKeyHex(): Promise<string> {
  */
 export async function ensureSigningKey(): Promise<string> {
   if (hasNativeKeychain()) {
-    const existing = await Keychain.getGenericPassword();
+    const existing = await Keychain.getGenericPassword({ service: SERVICE });
     if (existing) return existing.password;
     const secret = await generateKeyHex();
     await Keychain.setGenericPassword('user', secret, {
@@ -78,7 +78,7 @@ export async function biometricSignPayload(payload: unknown) {
   // 2) Retrieve key
   let secret: string | null = null;
   if (hasNativeKeychain()) {
-    const creds = await Keychain.getGenericPassword();
+    const creds = await Keychain.getGenericPassword({ service: SERVICE });
     secret = creds?.password ?? null;
   } else {
     // For SecureStore, optionally re-prompt just-in-time on supported OS
