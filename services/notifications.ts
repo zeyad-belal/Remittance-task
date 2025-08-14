@@ -1,103 +1,78 @@
-// security/keychain.ts
-import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
-import CryptoJS from 'crypto-js';
+// services/notifications.ts
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
-// Try to import react-native-keychain (native). It won't exist in Expo Go unless you prebuilt.
-let Keychain: any = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  Keychain = require('react-native-keychain');
-} catch {
-  Keychain = null;
-}
+// Show alerts in foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    // New NotificationBehavior API (SDK 53): use banner/list flags instead of shouldShowAlert
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
-const SERVICE = 'remit-signing-key';
-const SECURE_STORE_KEY = 'remit_signing_key';
-
-function hasNativeKeychain() {
-  return !!Keychain && typeof Keychain.getGenericPassword === 'function';
-}
-
-async function promptBiometric(prompt = 'Confirm to sign transaction') {
-  const res = await LocalAuthentication.authenticateAsync({
-    promptMessage: prompt,
-    disableDeviceFallback: false,
+async function ensureAndroidTxChannel() {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync('tx-updates', {
+    name: 'Transaction Updates',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    enableVibrate: true,
+    enableLights: true,
+    lightColor: '#FF00FF',
   });
-  if (!res.success) throw new Error('Biometric auth failed or cancelled');
-}
-
-async function generateKeyHex(): Promise<string> {
-  // Use CryptoJS for randomness (pure JS) to avoid adding more native deps
-  return CryptoJS.lib.WordArray.random(32).toString(CryptoJS.enc.Hex);
 }
 
 /**
- * Ensure we have a signing key protected by device secure storage.
- * - Prefers react-native-keychain when available (native, strongest).
- * - Falls back to expo-secure-store with requireAuthentication on supported platforms.
+ * Registers for push notifications and returns an Expo push token (or null on simulator).
+ * This configures the Android notification channel and asks for user permissions.
  */
-export async function ensureSigningKey(): Promise<string> {
-  if (hasNativeKeychain()) {
-    const existing = await Keychain.getGenericPassword({ service: SERVICE });
-    if (existing) return existing.password;
-    const secret = await generateKeyHex();
-    await Keychain.setGenericPassword('user', secret, {
-      service: SERVICE,
-      accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-      accessControl: Keychain.ACCESS_CONTROL.BIOMETRY_ANY_OR_DEVICE_PASSCODE,
-    });
-    return secret;
+export async function registerPush() {
+  if (!Device.isDevice) {
+    // Remote push tokens aren't available on simulators; local notifications still work.
+    return null;
   }
 
-  // Fallback path (Expo Go / no native keychain):
-  // Gate retrieval behind biometric each time.
-  const existing = await SecureStore.getItemAsync(SECURE_STORE_KEY, {
-    requireAuthentication: false, // we'll prompt explicitly before signing
-  });
-  if (existing) return existing;
+  // Permissions
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== 'granted') {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  if (finalStatus !== 'granted') return null;
 
-  const secret = await generateKeyHex();
-  await SecureStore.setItemAsync(SECURE_STORE_KEY, secret, {
-    requireAuthentication: false,
-    keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-  });
-  return secret;
+  await ensureAndroidTxChannel();
+
+  // Get Expo push token (send to backend in a real app)
+  const token = (await Notifications.getExpoPushTokenAsync()).data;
+  return token;
 }
 
 /**
- * Biometric-gated signing using HMAC-SHA256 over canonical JSON string.
- * Works with both native Keychain and SecureStore fallback.
+ * Local notification for when a transaction moves to Completed.
  */
-export async function biometricSignPayload(payload: unknown) {
-  // 1) Prompt biometric regardless of storage provider
-  // (On iOS Simulator without biometrics enrolled, this may fail; handle upstream.)
-  await promptBiometric('Confirm to sign transaction');
+export async function notifyTxCompleted(opts: { amount: number; currency: string; remoteId?: string }) {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Transfer Completed',
+      body: `Your ${opts.amount} ${opts.currency} transfer is complete${opts.remoteId ? ' (' + opts.remoteId + ')' : ''}.`,
+      data: { type: 'tx.completed', ...opts },
+    },
+    trigger: null,
+  });
+}
 
-  // 2) Retrieve key
-  let secret: string | null = null;
-  if (hasNativeKeychain()) {
-    const creds = await Keychain.getGenericPassword({ service: SERVICE });
-    secret = creds?.password ?? null;
-  } else {
-    // For SecureStore, optionally re-prompt just-in-time on supported OS
-    if (Platform.OS !== 'web') {
-      try {
-        await SecureStore.getItemAsync(SECURE_STORE_KEY, { requireAuthentication: true });
-      } catch {
-        /* ignore, we already prompted above */
-      }
-    }
-    secret = await SecureStore.getItemAsync(SECURE_STORE_KEY);
-  }
-  if (!secret) {
-    // First run fallback — generate and persist a key, then proceed
-    secret = await ensureSigningKey();
-  }
-
-  // 3) Sign
-  const body = JSON.stringify(payload);
-  const signature = CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);
-  return { body, signature, algo: 'HMAC-SHA256' as const };
+/**
+ * Generic local notification helper for other transaction statuses.
+ */
+export async function notifyTxStatus(title: string, body: string, data?: Record<string, any>) {
+  await Notifications.scheduleNotificationAsync({
+    content: { title, body, data: { type: 'tx.status', ...(data ?? {}) } },
+    trigger: null,
+  });
 }
