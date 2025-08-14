@@ -17,9 +17,7 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#0A7",
-          "sounds": [
-            "./assets/default.wav"
-          ]
+          "sounds": ["./assets/default.wav"]
         }
       ],
       [
@@ -39,22 +37,16 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "useFrameworks": "static",
-      "bundleIdentifier": "com.yourco.remit",
+      "bundleIdentifier": "com.zeyad.remit",
+      "developmentTeam": "WRTY9GQZH8",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "fetch",
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["fetch", "remote-notification"]
       },
-      "customBuildFlags": [
-        "-DSQLITE_ENABLE_DBSTAT_VTAB=1 -DSQLITE_ENABLE_SNAPSHOT=1"
-      ]
+      "customBuildFlags": ["-DSQLITE_ENABLE_DBSTAT_VTAB=1 -DSQLITE_ENABLE_SNAPSHOT=1"]
     },
     "android": {
       "adaptiveIcon": {
