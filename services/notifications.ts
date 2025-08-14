@@ -32,25 +32,42 @@ async function ensureAndroidTxChannel() {
  * This configures the Android notification channel and asks for user permissions.
  */
 export async function registerPush() {
-  if (!Device.isDevice) {
-    // Remote push tokens aren't available on simulators; local notifications still work.
+  // On iOS, getting an Expo push token requires an APNs entitlement (Push Notifications capability).
+  // Personal Teams cannot create that entitlement, so on those setups we gracefully no-op and
+  // rely on local notifications only.
+  try {
+    if (!Device.isDevice) {
+      return null; // Simulators can't get device tokens; local notifications still work
+    }
+
+    // Ask permissions (needed for showing notifications locally, too)
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') return null;
+
+    // Android: ensure channel exists
+    await ensureAndroidTxChannel();
+
+    // Try to obtain an Expo push token. This will fail on iOS when the app
+    // isn't signed with Push Notifications capability (e.g., Personal Team).
+    try {
+      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      return token;
+    } catch (apnsErr) {
+      console.warn(
+        'Push token unavailable (likely missing APNs entitlement — Personal Team). Using local notifications only.',
+        apnsErr
+      );
+      return null;
+    }
+  } catch (e) {
+    console.warn('registerPush failed; proceeding without remote push. Local notifications still work.', e);
     return null;
   }
-
-  // Permissions
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== 'granted') return null;
-
-  await ensureAndroidTxChannel();
-
-  // Get Expo push token (send to backend in a real app)
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
-  return token;
 }
 
 /**
