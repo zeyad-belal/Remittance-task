@@ -58,6 +58,18 @@ export async function exec(sql: string, params: any = []): Promise<{ changes: nu
     return db.runAsync(sql);
   }
 }
+export async function all(sql: string, params: any[] = []) {
+  const db = await getDb();
+
+  const stmt = await db.prepareAsync(sql);
+  try {
+    return await stmt.getAllAsync(params);   // returns an array
+  } finally {
+    await stmt.finalizeAsync();
+  }
+}
+
+
 
 // Prepared statement helper
 export async function prepare(sql: string) {
