@@ -1,39 +1,30 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { exec } from '@db/db';
+// KycScreen.tsx
+import { startKyc ,Cybrid } from "@services/cybrid";
+import { WebView } from "react-native-webview";
+import  { useEffect, useState } from "react";
+import { Button } from "react-native";
+export default function KycScreen() {
+  const [url, setUrl] = useState<string | null>(null);
 
-import { enqueue } from '@sync/outbox';
-
-export default function KycTab() {
-  async function capture() {
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.5, base64: false });
-    if (res.canceled) return;
-    const asset = res.assets[0];
-    const docId = String(Date.now());
-    await exec(`INSERT INTO kyc_docs (id,userId,uri,mime,uploadedAt) VALUES (?,?,?,?,?)`, [
-      docId,
-      'demo-user',
-      asset.uri,
-      asset.mimeType ?? 'image/jpeg',
-      Date.now(),
-    ]);
-    enqueue('KYC_UPLOAD', 'kyc_docs', docId, {
-      docId,
-      uri: asset.uri,
-      mime: asset.mimeType ?? 'image/jpeg',
-    });
-    Alert.alert('Queued', 'KYC document queued for upload.');
+  async function begin() {
+    const iv = await startKyc("<CUSTOMER_GUID>");
+    setUrl(iv.redirect_url!); // provided by Cybrid (Persona session)
   }
+useEffect(()=>{
+  async function fetchKycStatus(guid: string) {
 
-  return (
-    <View style={{ flex: 1, padding: 16, gap: 12 }}>
-      <Text>Take a photo of your ID/Passport (Demo)</Text>
-      <TouchableOpacity
-        onPress={capture}
-        style={{ padding: 16, backgroundColor: '#0A7', borderRadius: 10 }}>
-        <Text style={{ color: 'white', fontWeight: 'bold' }}>Capture KYC</Text>
-      </TouchableOpacity>
-    </View>
+    const iv = await Cybrid.kyc.getIdentityVerification({ identityVerificationGuid: guid }).toPromise();
+    if (iv.state === "completed") { /* enable trading */ }
+  }
+fetchKycStatus("<CUSTOMER_GUID>"); // replace with actual customer GUID
+},[])
+
+  return url ? (
+    <WebView source={{ uri: url }} onNavigationStateChange={(e) => {
+      // detect success/cancel callback urls if configured
+      // then mark customer as verified locally and return to app
+    }} />
+  ) : (
+    <Button title="Start KYC" onPress={begin} />
   );
 }

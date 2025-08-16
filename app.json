@@ -4,6 +4,9 @@
     "slug": "Remittance-app",
     "version": "1.0.0",
     "scheme": "remit",
+    "extra": {
+    "EXPO_PUBLIC_TOKEN_URL": "http://192.168.1.23:3000/token"
+  },
     "web": {
       "favicon": "./assets/favicon.png"
     },
